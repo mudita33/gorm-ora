@@ -148,7 +148,7 @@ func (d Dialector) RewriteWhere(c clause.Clause, builder clause.Builder) {
 }
 
 func (d Dialector) RewriteLimit(c clause.Clause, builder clause.Builder) {
-	if limit, ok := c.Expression.(clause.Limit); ok {
+	if limitClause, ok := c.Expression.(clause.Limit); ok {
 		if stmt, ok := builder.(*gorm.Statement); ok {
 			if _, ok := stmt.Clauses["ORDER BY"]; !ok {
 				s := stmt.Schema
@@ -164,15 +164,28 @@ func (d Dialector) RewriteLimit(c clause.Clause, builder clause.Builder) {
 			}
 		}
 
-		if offset := limit.Offset; offset > 0 {
+		if offset := limitClause.Offset; offset > 0 {
 			builder.WriteString(" OFFSET ")
 			builder.WriteString(strconv.Itoa(offset))
 			builder.WriteString(" ROWS")
 		}
-		if limit := limit.Limit; limit > 0 {
-			builder.WriteString(" FETCH NEXT ")
-			builder.WriteString(strconv.Itoa(limit))
-			builder.WriteString(" ROWS ONLY")
+		{
+			var limitVal = 0
+			var limitInterface interface{} = limitClause.Limit
+			switch limitInterface.(type) {
+			case int:
+				limitVal = limitInterface.(int)
+			case *int:
+				var pLimitVal = limitInterface.(*int)
+				if pLimitVal != nil {
+					limitVal = *pLimitVal
+				}
+			}
+			if limitVal > 0 {
+				builder.WriteString(" FETCH NEXT ")
+				builder.WriteString(strconv.Itoa(limitVal))
+				builder.WriteString(" ROWS ONLY")
+			}
 		}
 	}
 }
